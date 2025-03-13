@@ -116,7 +116,6 @@ def main():
                 break
 
         cap.release()
-
         cv2.destroyAllWindows()
     else:
         print("\n" + "No camera detected. Running evaluation on local images. \n")
@@ -151,7 +150,7 @@ def main():
 
             cv2.imshow("Depresso-Espresso - Image Evaluation (Press any key for next)", image)
             cv2.waitKey(0)
-            
+
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
