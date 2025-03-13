@@ -59,7 +59,7 @@ def main():
 
     # Save the trained model
     torch.save(model.state_dict(), "model.pth")
-    print("Training complete. Model saved as model.pth.")
+    print("\n" + "Training complete. Model saved as model.pth. \n")
 
     # -------------------------------
     # Evaluation Phase
