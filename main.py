@@ -51,7 +51,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     num_epochs = 10
-    print("Starting training...")
+    print("\n" + "Starting training...\n")
     for epoch in range(num_epochs):
         train_loss = train_utils.train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_accuracy = train_utils.evaluate(model, val_loader, criterion, device)
