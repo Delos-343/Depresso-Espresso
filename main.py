@@ -6,8 +6,8 @@ from torchvision import transforms
 
 # Import custom modules
 from models.cnn import CNN
-from data.dataset import CustomImageDataset, CLASSES
-from utils import camera_utils, face_detection, train_utils
+from data.data_loader import CustomImageDataset, CLASSES
+from utils import camera, face_det, utils
 
 def main():
     # Set up device: use CUDA if available
@@ -60,8 +60,8 @@ def main():
     print("\n" + "Starting training...\n")
 
     for epoch in range(num_epochs):
-        train_loss = train_utils.train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_accuracy = train_utils.evaluate(model, val_loader, criterion, device)
+        train_loss = utils.train_one_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss, val_accuracy = utils.evaluate(model, val_loader, criterion, device)
         print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
 
     # Save the trained model
@@ -77,10 +77,10 @@ def main():
     model.eval()
 
     # Check for camera availability; if available, use live feed, else use stored images
-    if camera_utils.check_camera_available():
+    if camera.check_camera_available():
         print("\n" + "Camera detected. Running live evaluation. \n")
 
-        face_detector = face_detection.FaceDetector()
+        face_detector = face_det.FaceDetector()
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
@@ -133,7 +133,7 @@ def main():
             if image is None:
                 continue
 
-            faces = face_detection.FaceDetector().detect_faces(image)
+            faces = face_det.FaceDetector().detect_faces(image)
 
             for (x, y, w, h) in faces:
                 face_img = image[y:y+h, x:x+w]
