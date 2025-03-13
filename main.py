@@ -97,7 +97,7 @@ def main():
         cap.release()
         cv2.destroyAllWindows()
     else:
-        print("No camera detected. Running evaluation on local images.")
+        print("\n" + "No camera detected. Running evaluation on local images. \n")
         test_images_dir = os.path.join("data", "test")
         if not os.path.isdir(test_images_dir):
             print(f"Test folder '{test_images_dir}' not found. Exiting evaluation phase.")
