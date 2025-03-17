@@ -1,4 +1,17 @@
 import torch
+import cv2
+
+def check_camera_available():
+    
+    cap = cv2.VideoCapture(0)
+    
+    if cap is None or not cap.isOpened():
+        return False
+    
+    cap.release()
+    
+    return True
+
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device):
     
@@ -23,6 +36,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device):
     
     return epoch_loss
 
+
 def evaluate(model, dataloader, criterion, device):
     
     model.eval()
@@ -35,14 +49,16 @@ def evaluate(model, dataloader, criterion, device):
     with torch.no_grad():
         
         for images, labels in dataloader:
-            
             images = images.to(device)
+            
             labels = labels.to(device)
+            
             outputs = model(images)
             loss = criterion(outputs, labels)
-           
+            
             running_loss += loss.item() * images.size(0)
             _, preds = torch.max(outputs, 1)
+            
             correct += torch.sum(preds == labels.data)
             
             all_preds.extend(preds.cpu().numpy())
