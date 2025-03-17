@@ -6,9 +6,9 @@ from torchvision import transforms
 
 # Import custom modules
 from models.cnn import CNN
-from data.dataset import CustomImageDataset, CLASSES
+from data.data_loader import CustomImageDataset, CLASSES
 from utils import camera_utils, face_detection, train_utils
-from utils.metrics import compute_metrics
+from utils.eval import compute_metrics
 
 def main():
 
