@@ -34,7 +34,7 @@ def main():
     # Training Phase
     # -------------------------------
    
-    dataset_dir = "data"  # Folder containing 'images/' and 'dataset.py'
+    dataset_dir = "data"  # Folder containing 'images/' and 'Data_Loader.py'
 
     dataset = CustomImageDataset(root_dir=dataset_dir, transform=transform)
     
