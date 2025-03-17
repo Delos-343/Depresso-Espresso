@@ -12,6 +12,7 @@ def load_config(config_path):
     
     spec = importlib.util.spec_from_file_location("depresso_config", config_path)
     config_module = importlib.util.module_from_spec(spec)
+
     spec.loader.exec_module(config_module)
     
     return config_module.config
@@ -38,6 +39,7 @@ def train_depresso():
         cfg[key] = value
     
     runner_instance = Runner(cfg)
+
     runner_instance.train()
 
 
@@ -60,6 +62,7 @@ def eval_depresso():
         cfg[key] = value
     
     runner_instance = Runner(cfg)
+
     runner_instance.eval()
 
 
@@ -72,7 +75,10 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
+    # python main.py --mode train
     if args.mode == 'train':
         train_depresso()
+    
+    # python main.py --mode eval
     elif args.mode == 'eval':
         eval_depresso()
