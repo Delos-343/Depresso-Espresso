@@ -26,7 +26,7 @@ class Runner:
                 # Limit GPU memory usage to 50%
                 torch.cuda.set_per_process_memory_fraction(0.5, device=self.device)
             except Exception as e:
-                print("\nCould not set GPU memory fraction:", e + "\n")
+                print("Could not set GPU memory fraction:", e)
         
         # Use config values with defaults if not provided
         self.data_dir = cfg.get('data_dir', "data")
@@ -52,7 +52,7 @@ class Runner:
         # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
-
+        
         train_indices = indices[:split]
         val_indices = indices[split:]
         
@@ -85,7 +85,9 @@ class Runner:
         train_labels = train_dataset.labels
         class_sample_count = np.array([train_labels.count(i) for i in range(len(CLASSES))])
         
-        weight = 1. / class_sample_count
+        # Avoid division by zero: replace any 0 count with 1
+        class_sample_count = np.where(class_sample_count == 0, 1, class_sample_count)
+        weight = 1.0 / class_sample_count
         class_weights = torch.tensor(weight, dtype=torch.float).to(self.device)
         
         # Initialize the loss function with class weights
@@ -112,9 +114,7 @@ class Runner:
         
         # Ensure the model sub-directory exists and save the trained model
         os.makedirs(self.model_dir, exist_ok=True)
-        
         model_path = os.path.join(self.model_dir, "model.pth")
-        
         torch.save(model.state_dict(), model_path)
         
         print("\n" + f"Training complete. Model saved as {model_path}. \n")
@@ -138,27 +138,122 @@ class Runner:
         
     
     def eval(self):
-        # ... (Evaluation Phase remains unchanged) ...
-        # [Keep your existing eval() method here]
-        # For brevity, evaluation code remains as before.
-        pass
+        
+        # -------------------------------
+        # Evaluation Phase
+        # -------------------------------
+        
+        # Initialize model
+        model = CNN(num_classes=len(CLASSES))
+        model_path = os.path.join(self.model_dir, "model.pth")
+        
+        if not os.path.exists(model_path):
+            print("\n" + f"Model file {model_path} does not exist. Exiting evaluation phase. \n")
+            return
+        
+        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        model.to(self.device)
+        model.eval()
+        
+        if check_camera_available():
+            
+            print("\nCamera detected. Running live evaluation.")
+            
+            face_detector = FaceDetector()
+            cap = cv2.VideoCapture(0)
+            
+            while True:
+                
+                ret, frame = cap.read()
+                
+                if not ret:
+                    break
+                
+                faces = face_detector.detect_faces(frame)
+                
+                for (x, y, w, h) in faces:
+                    
+                    face_img = frame[y:y+h, x:x+w]
+                    face_img = cv2.resize(face_img, (64, 64))
+                    
+                    # Convert BGR to RGB, then to tensor using the same transformation as training
+                    face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                    face_tensor = self.transform(torch.from_numpy(face_rgb)).unsqueeze(0).to(self.device)
+                    
+                    output = model(face_tensor)
+                    _, predicted = torch.max(output, 1)
+                    
+                    label = CLASSES[predicted.item()]
+                    
+                    # Draw bounding box and label on the frame
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                    cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+                
+                cv2.imshow("Depresso-Espresso - Live Evaluation (Press 'q' to quit)", frame)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            
+            cap.release()
+            
+            cv2.destroyAllWindows()
+        else:
+            print("\nNo camera detected. Running evaluation on local images.")
+            
+            test_images_dir = os.path.join(self.data_dir, "test")
+            
+            if not os.path.isdir(test_images_dir):
+                print(f"Test folder '{test_images_dir}' not found. Exiting evaluation phase.")
+                return
+            
+            for image_name in os.listdir(test_images_dir):
+                
+                image_path = os.path.join(test_images_dir, image_name)
+                image = cv2.imread(image_path)
+                
+                if image is None:
+                    continue
+                
+                faces = FaceDetector().detect_faces(image)
+                
+                for (x, y, w, h) in faces:
+                    
+                    face_img = image[y:y+h, x:x+w]
+                    face_img = cv2.resize(face_img, (64, 64))
+                    
+                    face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                    face_tensor = self.transform(torch.from_numpy(face_rgb)).unsqueeze(0).to(self.device)
+                    
+                    output = model(face_tensor)
+                    _, predicted = torch.max(output, 1)
+                    
+                    label = CLASSES[predicted.item()]
+                    
+                    cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.putText(image, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                
+                cv2.imshow("Depresso-Espresso - Image Evaluation (Press any key for next)", image)
+                
+                cv2.waitKey(0)
+            
+            cv2.destroyAllWindows()
 
 
 def print_nice_confusion_matrix(cm, labels):
-   
+    
     """
     Prints the confusion matrix in a modern, minimalist table format.
     """
 
     cm = np.array(cm)
-    
+
     row_labels = labels
     col_labels = labels
-    
+
     # Build table data: header row and each row with row label and corresponding values
     table = []
     header = [""] + col_labels
-    
+
     table.append(header)
 
     for i, row in enumerate(cm):
@@ -172,11 +267,9 @@ def print_nice_confusion_matrix(cm, labels):
     header_sep = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
     bottom_border = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
     
-
     def format_row(row):
         return "│" + "│".join(f" {item:^{w}} " for item, w in zip(row, col_widths)) + "│"
     
-
     # Print the table
     print(top_border)
     print(format_row(table[0]))

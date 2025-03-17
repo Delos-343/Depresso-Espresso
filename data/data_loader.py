@@ -37,9 +37,9 @@ class CustomImageDataset(Dataset):
                             
                             self.image_paths.append(full_path)
                             self.labels.append(idx)
-                            
+
                         except (UnidentifiedImageError, IOError, SyntaxError) as e:
-                            print(f"Skipping file {full_path}: {e}")
+                            print("\n" + f"Skipping file {full_path}: {e} \n")
         
         # If indices are provided, filter the lists
         if indices is not None:
