@@ -6,7 +6,7 @@ from torchvision import transforms
 
 # Import custom modules
 from models.cnn import CNN
-from data.data_loader import CustomImageDataset, CLASSES
+from data.Data_Loader import CustomImageDataset, CLASSES
 from utils import camera_utils, face_detection, train_utils
 from utils.eval import compute_metrics
 
@@ -35,7 +35,7 @@ def main():
     # -------------------------------
    
     dataset_dir = "data"  # Folder containing 'images/' and 'dataset.py'
-    
+
     dataset = CustomImageDataset(root_dir=dataset_dir, transform=transform)
     
     if len(dataset) == 0:
