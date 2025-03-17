@@ -37,12 +37,14 @@ class Runner:
     
     
     def train(self):
+        
         # -------------------------------
         # Training Phase with Augmentation, Weighted Sampler & Early Stopping
         # -------------------------------
         
         # Load full dataset for splitting
         full_dataset = CustomImageDataset(root_dir=self.data_dir, transform=None)
+        
         if len(full_dataset) == 0:
             print("No images found in the dataset. Exiting training phase.")
             return
@@ -50,6 +52,7 @@ class Runner:
         # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
+        
         train_indices = indices[:split]
         val_indices = indices[split:]
         
@@ -78,6 +81,7 @@ class Runner:
         # Compute sample weights for training dataset
         train_labels = np.array(train_dataset.labels)
         class_counts = np.bincount(train_labels, minlength=len(CLASSES))
+        
         sample_weights = [1.0 / class_counts[label] for label in train_labels]
         sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
         
@@ -90,10 +94,12 @@ class Runner:
         # Initialize model, optimizer, and learning rate scheduler
         model = CNN(num_classes=len(CLASSES))
         model.to(self.device)
+        
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
         print("\nStarting training...\n")
+        
         best_val_loss = float('inf')
         epochs_no_improve = 0
         
