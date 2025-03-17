@@ -1,6 +1,7 @@
 import os
 import cv2
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
@@ -101,9 +102,9 @@ class Runner:
         print(f"Accuracy:  {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall:    {recall:.4f}")
-
+        
         print("\n" + "Confusion Matrix: \n")
-        print(cm)
+        print_nice_confusion_matrix(cm, CLASSES)
     
 
     def eval(self):
@@ -206,3 +207,47 @@ class Runner:
                 cv2.waitKey(0)
             
             cv2.destroyAllWindows()
+
+
+def print_nice_confusion_matrix(cm, labels):
+
+    """
+    Prints the confusion matrix in a modern, minimalist table format.
+    """
+
+    cm = np.array(cm)
+
+    row_labels = labels
+    col_labels = labels
+
+    # Build table data: header row and each row with row label and corresponding values
+    table = []
+    header = [""] + col_labels
+    
+    table.append(header)
+
+    for i, row in enumerate(cm):
+        table.append([row_labels[i]] + [str(x) for x in row])
+    
+    # Compute column widths
+    col_widths = [max(len(item) for item in col) for col in zip(*table)]
+    
+    # Create borders using Unicode box drawing characters
+    top_border = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
+    header_sep = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
+    bottom_border = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
+    
+
+    def format_row(row):
+        return "│" + "│".join(f" {item:^{w}} " for item, w in zip(row, col_widths)) + "│"
+    
+
+    # Print the table
+    print(top_border)
+    print(format_row(table[0]))
+    print(header_sep)
+
+    for row in table[1:]:
+        print(format_row(row))
+        
+    print(bottom_border)
