@@ -35,6 +35,7 @@ def main():
     # -------------------------------
    
     dataset_dir = "data"  # Folder containing 'images/' and 'dataset.py'
+    
     dataset = CustomImageDataset(root_dir=dataset_dir, transform=transform)
     
     if len(dataset) == 0:
