@@ -9,18 +9,19 @@ def load_config(config_path):
     Dynamically load the configuration from a Python file.
     The file must define a 'config' dictionary.
     """
-    
-    spec = importlib.util.spec_from_file_location("depresso_config", config_path)
 
+    spec = importlib.util.spec_from_file_location("depresso_espresso", config_path)
+    
     config_module = importlib.util.module_from_spec(spec)
 
     spec.loader.exec_module(config_module)
 
     return config_module.config
 
+
 def train_depresso():
     args = Namespace(
-        config="config/depresso_config.py",
+        config="config/base/depresso-espresso.py",
         distributed=False,
         gpu=0,
         local_rank=0,
@@ -45,9 +46,8 @@ def train_depresso():
 
 
 def eval_depresso():
-
     args = Namespace(
-        config="config/depresso_config.py",
+        config="config/base/depresso-espresso.py",
         distributed=False,
         gpu=0,
         local_rank=0,
@@ -82,6 +82,5 @@ if __name__ == '__main__':
     
     if args.mode == 'train':
         train_depresso()
-
     elif args.mode == 'eval':
         eval_depresso()
