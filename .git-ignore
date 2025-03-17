@@ -10,6 +10,6 @@
 models/cipo
 models/cipo.zip
 /model.pth
-data/anxiety
-data/depression
-data/stress
+data/images/anxiety
+data/images/depression
+data/images/stress
