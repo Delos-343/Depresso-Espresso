@@ -35,17 +35,20 @@ class Runner:
         self.batch_size = cfg.get('batch_size', 32)
         self.learning_rate = cfg.get('learning_rate', 0.001)
         self.epochs = cfg.get('epochs', 10)
-        self.patience = cfg.get('patience', 3)
+        
+        # Early stopping is now disabled, so we won't check patience
+        # self.patience = cfg.get('patience', 3)
     
     
     def train(self):
         
         # -------------------------------
-        # Training Phase with Augmentation, Weighted Sampler & Early Stopping
+        # Training Phase with Augmentation & Weighted Sampler
         # -------------------------------
         
         # Load full dataset for splitting
         full_dataset = CustomImageDataset(root_dir=self.data_dir, transform=None)
+        
         if len(full_dataset) == 0:
             print("No images found in the dataset. Exiting training phase.")
             return
@@ -53,6 +56,7 @@ class Runner:
         # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
+        
         train_indices = indices[:split]
         val_indices = indices[split:]
         
@@ -81,6 +85,7 @@ class Runner:
         
         # Compute sample weights for WeightedRandomSampler
         train_labels = np.array(train_dataset.labels)
+        
         class_counts = np.bincount(train_labels, minlength=len(CLASSES))
         class_counts = np.where(class_counts == 0, 1, class_counts)
         
@@ -107,9 +112,7 @@ class Runner:
         
         print("\nStarting training...\n")
         
-        best_val_loss = float('inf')
-        epochs_no_improve = 0
-        
+        # Removed early stopping logic so that training always runs for all epochs
         for epoch in range(self.epochs):
             
             train_loss = train_one_epoch(model, train_loader, criterion, optimizer, self.device)
@@ -117,20 +120,10 @@ class Runner:
             scheduler.step(val_loss)
             
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
-            
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                epochs_no_improve = 0
-                best_model_state = model.state_dict()
-            else:
-                epochs_no_improve += 1
-                if epochs_no_improve >= self.patience:
-                    print("\nEarly stopping triggered.\n")
-                    model.load_state_dict(best_model_state)
-                    break
         
         os.makedirs(self.model_dir, exist_ok=True)
         model_path = os.path.join(self.model_dir, "model.pth")
+        
         torch.save(model.state_dict(), model_path)
         
         print(f"\nTraining complete. Model saved as {model_path}.\n")
@@ -149,11 +142,10 @@ class Runner:
         print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
     
-    
     def eval(self):
         
         # -------------------------------
-        # Evaluation Phase (unchanged)
+        # Evaluation Phase
         # -------------------------------
         
         model = CNN(num_classes=len(CLASSES))
@@ -165,6 +157,7 @@ class Runner:
         
         model.load_state_dict(torch.load(model_path, map_location=self.device))
         model.to(self.device)
+        
         model.eval()
         
         if check_camera_available():
@@ -184,6 +177,7 @@ class Runner:
                 faces = face_detector.detect_faces(frame)
                 
                 for (x, y, w, h) in faces:
+                    
                     face_img = frame[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
@@ -228,7 +222,7 @@ class Runner:
                 faces = FaceDetector().detect_faces(image)
                 
                 for (x, y, w, h) in faces:
-
+                    
                     face_img = image[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
@@ -246,7 +240,7 @@ class Runner:
                 cv2.imshow("Depresso-Espresso - Image Evaluation (Press any key for next)", image)
                 
                 cv2.waitKey(0)
-            
+
             cv2.destroyAllWindows()
 
 
@@ -255,17 +249,17 @@ def print_nice_confusion_matrix(cm, labels):
     """
     Prints the confusion matrix in a modern, minimalist table format.
     """
-    
+
     cm = np.array(cm)
-    
+
     row_labels = labels
     col_labels = labels
-    
+
     table = []
     header = [""] + col_labels
     
     table.append(header)
-    
+
     for i, row in enumerate(cm):
         table.append([row_labels[i]] + [str(x) for x in row])
     
