@@ -32,19 +32,18 @@ class CustomImageDataset(Dataset):
                     if file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         
                         full_path = os.path.join(class_dir, file_name)
-                        
+
                         try:
                             with Image.open(full_path) as img:
                                 img.verify()  # Verify it's a valid image
                             
                             self.image_paths.append(full_path)
                             self.labels.append(idx)
-                        
+
                         except (UnidentifiedImageError, IOError, SyntaxError) as e:
-                            # print("\n" + f"Skipping file {full_path}: {e} \n")
-                            pass
-        
-        # If indices are provided, filter the lists
+                            # To force training to complete, we simply skip the file silently.
+                            pass  
+
         if indices is not None:
             self.image_paths = [self.image_paths[i] for i in indices]
             self.labels = [self.labels[i] for i in indices]

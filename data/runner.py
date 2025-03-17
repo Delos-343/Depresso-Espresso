@@ -5,10 +5,8 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
-from torchvision.transforms import AutoAugment, AutoAugmentPolicy
 
 # Import custom modules with updated paths/names
-from models.cnn import CNN  # Default CNN model; used if not using pre-trained
 from data.Data_Loader import CustomImageDataset, CLASSES
 from utils.utils import check_camera_available, train_one_epoch, evaluate
 from utils.face_det import FaceDetector
@@ -29,21 +27,18 @@ class Runner:
             except Exception as e:
                 print("Could not set GPU memory fraction:", e)
         
-        # Use config values with defaults if not provided
+        # Configuration parameters
         self.data_dir = cfg.get('data_dir', "data")
         self.model_dir = cfg.get('model_dir', "model")
         self.batch_size = cfg.get('batch_size', 32)
-        self.learning_rate = cfg.get('learning_rate', 0.001)
+        self.learning_rate = cfg.get('learning_rate', 1e-4)  # Lower learning rate
         self.epochs = cfg.get('epochs', 10)
-        
-        # Early stopping is now disabled, so we won't check patience
-        # self.patience = cfg.get('patience', 3)
     
     
     def train(self):
         
         # -------------------------------
-        # Training Phase with Augmentation & Weighted Sampler
+        # Training Phase with Augmentation & Weighted Sampling
         # -------------------------------
         
         # Load full dataset for splitting
@@ -53,17 +48,15 @@ class Runner:
             print("No images found in the dataset. Exiting training phase.")
             return
         
-        # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
         
         train_indices = indices[:split]
         val_indices = indices[split:]
         
-        # Define separate transforms for training and validation
+        # Define transforms: simpler augmentation for stability
         train_transform = transforms.Compose([
             transforms.Resize((64, 64)),
-            AutoAugment(policy=AutoAugmentPolicy.IMAGENET),
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
@@ -71,7 +64,6 @@ class Runner:
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
         ])
-        
         val_transform = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.ToTensor(),
@@ -79,11 +71,10 @@ class Runner:
                                  std=[0.229, 0.224, 0.225])
         ])
         
-        # Create separate dataset instances for training and validation
         train_dataset = CustomImageDataset(root_dir=self.data_dir, transform=train_transform, indices=train_indices)
         val_dataset = CustomImageDataset(root_dir=self.data_dir, transform=val_transform, indices=val_indices)
         
-        # Compute sample weights for WeightedRandomSampler
+        # Weighted Random Sampler for balanced sampling
         train_labels = np.array(train_dataset.labels)
         
         class_counts = np.bincount(train_labels, minlength=len(CLASSES))
@@ -95,28 +86,28 @@ class Runner:
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, sampler=sampler)
         val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         
-        # Choose model architecture based on configuration
+        # Choose model: if using pre-trained, use that model; otherwise, use custom CNN.
         if self.cfg.get('use_pretrained', False):
             from models.resnet import ResNetTransfer
-            model = ResNetTransfer(num_classes=len(CLASSES))
+            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=True)
         else:
             from models.cnn import CNN
             model = CNN(num_classes=len(CLASSES))
         
         model.to(self.device)
         
-        # Initialize loss, optimizer, and scheduler
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
         print("\nStarting training...\n")
         
-        # Removed early stopping logic so that training always runs for all epochs
+        # Training always runs for the full number of epochs
         for epoch in range(self.epochs):
             
             train_loss = train_one_epoch(model, train_loader, criterion, optimizer, self.device)
             val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
+            
             scheduler.step(val_loss)
             
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
@@ -128,7 +119,10 @@ class Runner:
         
         print(f"\nTraining complete. Model saved as {model_path}.\n")
         
-        # Compute and display metrics on validation set
+        # -------------------------------
+        # Compute and Display Metrics on Validation Set
+        # -------------------------------
+        
         val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
         accuracy, precision, recall, f1, cm = compute_metrics(y_true, y_pred)
         
@@ -142,13 +136,20 @@ class Runner:
         print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
     
+
     def eval(self):
         
         # -------------------------------
-        # Evaluation Phase
+        # Evaluation Phase (unchanged)
         # -------------------------------
         
-        model = CNN(num_classes=len(CLASSES))
+        if self.cfg.get('use_pretrained', False):
+            from models.resnet import ResNetTransfer
+            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=True)
+        else:
+            from models.cnn import CNN
+            model = CNN(num_classes=len(CLASSES))
+        
         model_path = os.path.join(self.model_dir, "model.pth")
         
         if not os.path.exists(model_path):
@@ -165,6 +166,7 @@ class Runner:
             print("\nCamera detected. Running live evaluation.")
             
             face_detector = FaceDetector()
+            
             cap = cv2.VideoCapture(0)
             
             while True:
@@ -177,7 +179,6 @@ class Runner:
                 faces = face_detector.detect_faces(frame)
                 
                 for (x, y, w, h) in faces:
-                    
                     face_img = frame[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
@@ -220,7 +221,7 @@ class Runner:
                     continue
                 
                 faces = FaceDetector().detect_faces(image)
-                
+               
                 for (x, y, w, h) in faces:
                     
                     face_img = image[y:y+h, x:x+w]
@@ -240,7 +241,7 @@ class Runner:
                 cv2.imshow("Depresso-Espresso - Image Evaluation (Press any key for next)", image)
                 
                 cv2.waitKey(0)
-
+            
             cv2.destroyAllWindows()
 
 
@@ -249,17 +250,16 @@ def print_nice_confusion_matrix(cm, labels):
     """
     Prints the confusion matrix in a modern, minimalist table format.
     """
-
+    
     cm = np.array(cm)
 
     row_labels = labels
     col_labels = labels
-
+    
     table = []
     header = [""] + col_labels
-    
     table.append(header)
-
+    
     for i, row in enumerate(cm):
         table.append([row_labels[i]] + [str(x) for x in row])
     
@@ -275,7 +275,9 @@ def print_nice_confusion_matrix(cm, labels):
     
 
     print(top_border)
+
     print(format_row(table[0]))
+    
     print(header_sep)
 
     for row in table[1:]:
