@@ -3,6 +3,7 @@ import cv2
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
 
 # Import custom modules with updated paths/names
@@ -20,10 +21,8 @@ class Runner:
         
         # Set up device: use CUDA if available
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
         if self.device.type == "cuda":
             try:
-                # Limit GPU memory usage to 50%
                 torch.cuda.set_per_process_memory_fraction(0.5, device=self.device)
             except Exception as e:
                 print("Could not set GPU memory fraction:", e)
@@ -34,17 +33,16 @@ class Runner:
         self.batch_size = cfg.get('batch_size', 32)
         self.learning_rate = cfg.get('learning_rate', 0.001)
         self.epochs = cfg.get('epochs', 10)
+        self.patience = cfg.get('patience', 3)  # Early stopping patience
     
     
     def train(self):
-        
         # -------------------------------
-        # Training Phase with Augmentation & Weighted Loss
+        # Training Phase with Augmentation, Weighted Sampler & Early Stopping
         # -------------------------------
         
-        # First, load the full dataset without a transform for splitting purposes
+        # Load full dataset for splitting
         full_dataset = CustomImageDataset(root_dir=self.data_dir, transform=None)
-        
         if len(full_dataset) == 0:
             print("No images found in the dataset. Exiting training phase.")
             return
@@ -52,7 +50,6 @@ class Runner:
         # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
-        
         train_indices = indices[:split]
         val_indices = indices[split:]
         
@@ -74,81 +71,85 @@ class Runner:
                                  std=[0.229, 0.224, 0.225])
         ])
         
-        # Create separate dataset instances for training and validation using the indices
+        # Create separate dataset instances for training and validation
         train_dataset = CustomImageDataset(root_dir=self.data_dir, transform=train_transform, indices=train_indices)
         val_dataset = CustomImageDataset(root_dir=self.data_dir, transform=val_transform, indices=val_indices)
         
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        # Compute sample weights for training dataset
+        train_labels = np.array(train_dataset.labels)
+        class_counts = np.bincount(train_labels, minlength=len(CLASSES))
+        sample_weights = [1.0 / class_counts[label] for label in train_labels]
+        sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
+        
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, sampler=sampler)
         val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         
-        # Compute class weights based on training labels
-        train_labels = train_dataset.labels
-        class_sample_count = np.array([train_labels.count(i) for i in range(len(CLASSES))])
+        # Initialize loss function (optionally, you could still use class weights here)
+        criterion = torch.nn.CrossEntropyLoss()
         
-        # Avoid division by zero: replace any 0 count with 1
-        class_sample_count = np.where(class_sample_count == 0, 1, class_sample_count)
-        weight = 1.0 / class_sample_count
-        class_weights = torch.tensor(weight, dtype=torch.float).to(self.device)
-        
-        # Initialize the loss function with class weights
-        criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
-        
-        # Initialize the CNN model, optimizer, and learning rate scheduler
+        # Initialize model, optimizer, and learning rate scheduler
         model = CNN(num_classes=len(CLASSES))
         model.to(self.device)
-        
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
-        print("\n" + "Starting training... \n")
+        print("\nStarting training...\n")
+        best_val_loss = float('inf')
+        epochs_no_improve = 0
         
         for epoch in range(self.epochs):
-            
             train_loss = train_one_epoch(model, train_loader, criterion, optimizer, self.device)
             val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
-            
-            # Step the scheduler with the validation loss
             scheduler.step(val_loss)
             
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
+            
+            # Early stopping check
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+                # Optionally, save the best model here
+                best_model_state = model.state_dict()
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= self.patience:
+                    print("Early stopping triggered.")
+                    model.load_state_dict(best_model_state)
+                    break
         
-        # Ensure the model sub-directory exists and save the trained model
+        # Ensure model directory exists and save model
         os.makedirs(self.model_dir, exist_ok=True)
         model_path = os.path.join(self.model_dir, "model.pth")
         torch.save(model.state_dict(), model_path)
         
-        print("\n" + f"Training complete. Model saved as {model_path}. \n")
+        print(f"\nTraining complete. Model saved as {model_path}.\n")
         
         # -------------------------------
         # Compute and Display Metrics on Validation Set
         # -------------------------------
-        
         val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
         accuracy, precision, recall, f1, cm = compute_metrics(y_true, y_pred)
         
-        print("\n" + "Validation Metrics: \n")
-        
+        print("\nValidation Metrics:\n")
         print(f"F1-Score:  {f1:.4f}")
         print(f"Accuracy:  {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall:    {recall:.4f}")
         
-        print("\n" + "Confusion Matrix: \n")
+        print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
         
     
     def eval(self):
-        
         # -------------------------------
-        # Evaluation Phase
+        # Evaluation Phase (Unchanged)
         # -------------------------------
         
-        # Initialize model
         model = CNN(num_classes=len(CLASSES))
         model_path = os.path.join(self.model_dir, "model.pth")
         
         if not os.path.exists(model_path):
-            print("\n" + f"Model file {model_path} does not exist. Exiting evaluation phase. \n")
+            print(f"\nModel file {model_path} does not exist. Exiting evaluation phase.\n")
             return
         
         model.load_state_dict(torch.load(model_path, map_location=self.device))
@@ -176,7 +177,6 @@ class Runner:
                     face_img = frame[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
-                    # Convert BGR to RGB, then to tensor using the same transformation as training
                     face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
                     face_tensor = self.transform(torch.from_numpy(face_rgb)).unsqueeze(0).to(self.device)
                     
@@ -185,7 +185,6 @@ class Runner:
                     
                     label = CLASSES[predicted.item()]
                     
-                    # Draw bounding box and label on the frame
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
                     cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
                 
@@ -198,6 +197,7 @@ class Runner:
             
             cv2.destroyAllWindows()
         else:
+            
             print("\nNo camera detected. Running evaluation on local images.")
             
             test_images_dir = os.path.join(self.data_dir, "test")
@@ -244,18 +244,18 @@ def print_nice_confusion_matrix(cm, labels):
     """
     Prints the confusion matrix in a modern, minimalist table format.
     """
-
+    
     cm = np.array(cm)
-
+    
     row_labels = labels
     col_labels = labels
-
+    
     # Build table data: header row and each row with row label and corresponding values
     table = []
     header = [""] + col_labels
-
+    
     table.append(header)
-
+    
     for i, row in enumerate(cm):
         table.append([row_labels[i]] + [str(x) for x in row])
     
