@@ -86,7 +86,7 @@ class Runner:
         model_path = os.path.join(self.model_dir, "model.pth")
         torch.save(model.state_dict(), model_path)
         
-        print(f"Training complete. Model saved as {model_path}.")
+        print("\n" + f"Training complete. Model saved as {model_path}. \n")
         
         # -------------------------------
         # Compute and Display Metrics on Validation Set
@@ -95,14 +95,14 @@ class Runner:
         val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
         accuracy, precision, recall, f1, cm = compute_metrics(y_true, y_pred)
         
-        print("\nValidation Metrics:")
+        print("\n" + "Validation Metrics: \n")
         
         print(f"F1-Score:  {f1:.4f}")
         print(f"Accuracy:  {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall:    {recall:.4f}")
 
-        print("Confusion Matrix:")
+        print("\n" + "Confusion Matrix: \n")
         print(cm)
     
 
