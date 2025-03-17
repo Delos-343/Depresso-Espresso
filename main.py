@@ -1,7 +1,7 @@
 import argparse
 from argparse import Namespace
 import importlib.util
-from data.runner import Runner
+from experiments.runner import Runner
 
 def load_config(config_path):
     
