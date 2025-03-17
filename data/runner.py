@@ -97,12 +97,12 @@ class Runner:
         
         print("\nValidation Metrics:")
         
+        print(f"F1-Score:  {f1:.4f}")
         print(f"Accuracy:  {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall:    {recall:.4f}")
-        print(f"F1-Score:  {f1:.4f}")
+
         print("Confusion Matrix:")
-        
         print(cm)
     
 

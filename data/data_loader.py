@@ -16,6 +16,7 @@ class CustomImageDataset(Dataset):
         """
         
         self.transform = transform
+        
         self.image_paths = []
         self.labels = []
 
@@ -40,6 +41,7 @@ class CustomImageDataset(Dataset):
                             # If verification succeeds, add the image to the dataset
                             self.image_paths.append(full_path)
                             self.labels.append(idx)
+                        
                         except (UnidentifiedImageError, IOError, SyntaxError) as e:
                             print("\n" + f"Skipping file {full_path}: {e} \n")
     
