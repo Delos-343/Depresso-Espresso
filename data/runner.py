@@ -125,7 +125,7 @@ class Runner:
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= self.patience:
-                    print("Early stopping triggered.")
+                    print("\nEarly stopping triggered.\n")
                     model.load_state_dict(best_model_state)
                     break
         
