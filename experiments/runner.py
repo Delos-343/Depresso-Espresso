@@ -29,7 +29,7 @@ class Runner:
         
         # Configuration parameters
         self.data_dir = cfg.get('data_dir', "data")
-        self.model_dir = cfg.get('model_dir', "model")
+        self.model_dir = cfg.get('model_dir', "pretrained_models")
         self.batch_size = cfg.get('batch_size', 32)
         self.learning_rate = cfg.get('learning_rate', 1e-4)  # Lower learning rate
         self.epochs = cfg.get('epochs', 10)
@@ -113,7 +113,7 @@ class Runner:
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
         
         os.makedirs(self.model_dir, exist_ok=True)
-        model_path = os.path.join(self.model_dir, "model.pth")
+        model_path = os.path.join(self.model_dir, "dep_esp.pth")
         
         torch.save(model.state_dict(), model_path)
         
@@ -150,7 +150,7 @@ class Runner:
             from models.cnn import CNN
             model = CNN(num_classes=len(CLASSES))
         
-        model_path = os.path.join(self.model_dir, "model.pth")
+        model_path = os.path.join(self.model_dir, "dep_esp.pth")
         
         if not os.path.exists(model_path):
             print(f"\nModel file {model_path} does not exist. Exiting evaluation phase.\n")
