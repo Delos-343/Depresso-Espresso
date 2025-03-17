@@ -29,7 +29,7 @@ class Runner:
         
         # Configuration parameters
         self.data_dir = cfg.get('data_dir', "data")
-        self.model_dir = cfg.get('model_dir', "pretrained_models")
+        self.model_dir = cfg.get('model_dir', "model")
         self.batch_size = cfg.get('batch_size', 32)
         self.learning_rate = cfg.get('learning_rate', 1e-4)  # Lower learning rate
         self.epochs = cfg.get('epochs', 10)
@@ -140,7 +140,7 @@ class Runner:
     def eval(self):
         
         # -------------------------------
-        # Evaluation Phase (unchanged)
+        # Evaluation Phase
         # -------------------------------
         
         if self.cfg.get('use_pretrained', False):
