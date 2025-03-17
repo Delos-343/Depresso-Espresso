@@ -5,10 +5,10 @@ import torch.nn.functional as F
 class CNN(nn.Module):
     
     def __init__(self, num_classes=3):
-        
+
         super(CNN, self).__init__()
         
-        # Updated architecture: more filters, batch normalization, and dropout for regularization.
+        # Updated architecture with BatchNorm and Dropout
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
         
@@ -22,19 +22,17 @@ class CNN(nn.Module):
         
         self.dropout = nn.Dropout(0.5)
         
-        # Calculate the size of the feature map after two poolings:
-        # Input: 64x64 → after conv1+pool: 32x32, after conv2+pool: 16x16,
-        # conv3 does not pool so feature map remains 16x16.
+        # After two poolings, feature map size: 64x64 -> 32x32 -> 16x16
         self.fc1 = nn.Linear(128 * 16 * 16, 256)
         self.fc2 = nn.Linear(256, num_classes)
     
-    
+
     def forward(self, x):
 
-        x = self.pool(F.relu(self.bn1(self.conv1(x))))  # [B, 32, 32, 32]
-        x = self.pool(F.relu(self.bn2(self.conv2(x))))  # [B, 64, 16, 16]
-        x = F.relu(self.bn3(self.conv3(x)))             # [B, 128, 16, 16]
-        
+        x = self.pool(F.relu(self.bn1(self.conv1(x))))   # [B, 32, 32, 32]
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))   # [B, 64, 16, 16]
+        x = F.relu(self.bn3(self.conv3(x))) 
+                     # [B, 128, 16, 16]
         x = self.dropout(x)
 
         x = x.view(x.size(0), -1)

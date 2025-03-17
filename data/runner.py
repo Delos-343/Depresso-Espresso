@@ -5,9 +5,10 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
+from torchvision.transforms import AutoAugment, AutoAugmentPolicy
 
 # Import custom modules with updated paths/names
-from models.cnn import CNN
+from models.cnn import CNN  # Default CNN model; used if not using pre-trained
 from data.Data_Loader import CustomImageDataset, CLASSES
 from utils.utils import check_camera_available, train_one_epoch, evaluate
 from utils.face_det import FaceDetector
@@ -21,6 +22,7 @@ class Runner:
         
         # Set up device: use CUDA if available
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         if self.device.type == "cuda":
             try:
                 torch.cuda.set_per_process_memory_fraction(0.5, device=self.device)
@@ -33,7 +35,7 @@ class Runner:
         self.batch_size = cfg.get('batch_size', 32)
         self.learning_rate = cfg.get('learning_rate', 0.001)
         self.epochs = cfg.get('epochs', 10)
-        self.patience = cfg.get('patience', 3)  # Early stopping patience
+        self.patience = cfg.get('patience', 3)
     
     
     def train(self):
@@ -44,7 +46,6 @@ class Runner:
         
         # Load full dataset for splitting
         full_dataset = CustomImageDataset(root_dir=self.data_dir, transform=None)
-        
         if len(full_dataset) == 0:
             print("No images found in the dataset. Exiting training phase.")
             return
@@ -52,13 +53,13 @@ class Runner:
         # Create indices and split into training (80%) and validation (20%)
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
-        
         train_indices = indices[:split]
         val_indices = indices[split:]
         
         # Define separate transforms for training and validation
         train_transform = transforms.Compose([
             transforms.Resize((64, 64)),
+            AutoAugment(policy=AutoAugmentPolicy.IMAGENET),
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
@@ -78,9 +79,10 @@ class Runner:
         train_dataset = CustomImageDataset(root_dir=self.data_dir, transform=train_transform, indices=train_indices)
         val_dataset = CustomImageDataset(root_dir=self.data_dir, transform=val_transform, indices=val_indices)
         
-        # Compute sample weights for training dataset
+        # Compute sample weights for WeightedRandomSampler
         train_labels = np.array(train_dataset.labels)
         class_counts = np.bincount(train_labels, minlength=len(CLASSES))
+        class_counts = np.where(class_counts == 0, 1, class_counts)
         
         sample_weights = [1.0 / class_counts[label] for label in train_labels]
         sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
@@ -88,13 +90,18 @@ class Runner:
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, sampler=sampler)
         val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         
-        # Initialize loss function (optionally, you could still use class weights here)
-        criterion = torch.nn.CrossEntropyLoss()
+        # Choose model architecture based on configuration
+        if self.cfg.get('use_pretrained', False):
+            from models.resnet import ResNetTransfer
+            model = ResNetTransfer(num_classes=len(CLASSES))
+        else:
+            from models.cnn import CNN
+            model = CNN(num_classes=len(CLASSES))
         
-        # Initialize model, optimizer, and learning rate scheduler
-        model = CNN(num_classes=len(CLASSES))
         model.to(self.device)
         
+        # Initialize loss, optimizer, and scheduler
+        criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
@@ -104,17 +111,16 @@ class Runner:
         epochs_no_improve = 0
         
         for epoch in range(self.epochs):
+            
             train_loss = train_one_epoch(model, train_loader, criterion, optimizer, self.device)
             val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
             scheduler.step(val_loss)
             
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
             
-            # Early stopping check
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
-                # Optionally, save the best model here
                 best_model_state = model.state_dict()
             else:
                 epochs_no_improve += 1
@@ -123,20 +129,18 @@ class Runner:
                     model.load_state_dict(best_model_state)
                     break
         
-        # Ensure model directory exists and save model
         os.makedirs(self.model_dir, exist_ok=True)
         model_path = os.path.join(self.model_dir, "model.pth")
         torch.save(model.state_dict(), model_path)
         
         print(f"\nTraining complete. Model saved as {model_path}.\n")
         
-        # -------------------------------
-        # Compute and Display Metrics on Validation Set
-        # -------------------------------
+        # Compute and display metrics on validation set
         val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
         accuracy, precision, recall, f1, cm = compute_metrics(y_true, y_pred)
         
         print("\nValidation Metrics:\n")
+        
         print(f"F1-Score:  {f1:.4f}")
         print(f"Accuracy:  {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
@@ -144,11 +148,12 @@ class Runner:
         
         print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
-        
+    
     
     def eval(self):
+        
         # -------------------------------
-        # Evaluation Phase (Unchanged)
+        # Evaluation Phase (unchanged)
         # -------------------------------
         
         model = CNN(num_classes=len(CLASSES))
@@ -179,7 +184,6 @@ class Runner:
                 faces = face_detector.detect_faces(frame)
                 
                 for (x, y, w, h) in faces:
-                    
                     face_img = frame[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
@@ -202,6 +206,7 @@ class Runner:
             cap.release()
             
             cv2.destroyAllWindows()
+        
         else:
             
             print("\nNo camera detected. Running evaluation on local images.")
@@ -214,7 +219,7 @@ class Runner:
             
             for image_name in os.listdir(test_images_dir):
                 
-                image_path = os.path.join(test_images_dir, image_name)
+                image_path = os.path.join(self.data_dir, "test", image_name)
                 image = cv2.imread(image_path)
                 
                 if image is None:
@@ -223,7 +228,7 @@ class Runner:
                 faces = FaceDetector().detect_faces(image)
                 
                 for (x, y, w, h) in faces:
-                    
+
                     face_img = image[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     
@@ -256,7 +261,6 @@ def print_nice_confusion_matrix(cm, labels):
     row_labels = labels
     col_labels = labels
     
-    # Build table data: header row and each row with row label and corresponding values
     table = []
     header = [""] + col_labels
     
@@ -265,18 +269,17 @@ def print_nice_confusion_matrix(cm, labels):
     for i, row in enumerate(cm):
         table.append([row_labels[i]] + [str(x) for x in row])
     
-    # Compute column widths
     col_widths = [max(len(item) for item in col) for col in zip(*table)]
     
-    # Create borders using Unicode box-drawing characters
     top_border = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
     header_sep = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
     bottom_border = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
     
+
     def format_row(row):
         return "│" + "│".join(f" {item:^{w}} " for item, w in zip(row, col_widths)) + "│"
     
-    # Print the table
+
     print(top_border)
     print(format_row(table[0]))
     print(header_sep)
