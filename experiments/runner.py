@@ -123,7 +123,7 @@ class Runner:
                 best_model_state = model.state_dict()
             else:
                 # If no improvement, print a message (but we don't stop training as per your requirement)
-                print("No improvement in validation loss.")
+                print("\nNo improvement in validation loss.\n")
         
         # At the end, load the best model state
         if best_model_state is not None:
