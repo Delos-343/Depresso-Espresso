@@ -31,13 +31,13 @@ class CNN(nn.Module):
 
         x = self.pool(F.relu(self.bn1(self.conv1(x))))   # [B, 32, 32, 32]
         x = self.pool(F.relu(self.bn2(self.conv2(x))))   # [B, 64, 16, 16]
-        x = F.relu(self.bn3(self.conv3(x))) 
-                     # [B, 128, 16, 16]
+
+        x = F.relu(self.bn3(self.conv3(x)))              # [B, 128, 16, 16]
         x = self.dropout(x)
 
         x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
 
+        x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
 
