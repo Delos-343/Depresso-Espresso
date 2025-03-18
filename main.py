@@ -11,6 +11,7 @@ def load_config(config_path):
     """
     
     spec = importlib.util.spec_from_file_location("depresso_config", config_path)
+    
     config_module = importlib.util.module_from_spec(spec)
 
     spec.loader.exec_module(config_module)
