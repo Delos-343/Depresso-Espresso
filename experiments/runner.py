@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
+# Import AutoAugment for advanced data augmentation
 from torchvision.transforms import AutoAugment, AutoAugmentPolicy
 
 # Import custom modules with updated paths/names
@@ -16,7 +17,7 @@ from utils.eval import compute_metrics
 class Runner:
     
     def __init__(self, cfg):
-        
+
         self.cfg = cfg
         
         # Set up device: use CUDA if available
@@ -28,19 +29,19 @@ class Runner:
             except Exception as e:
                 print("Could not set GPU memory fraction:", e)
         
-        # Configuration parameters (update as needed)
+        # Configuration parameters (from config file)
         self.data_dir = cfg.get('data_dir', "data")
         self.model_dir = cfg.get('model_dir', "model")
         self.batch_size = cfg.get('batch_size', 16)
         self.learning_rate = cfg.get('learning_rate', 1e-4)
         self.epochs = cfg.get('epochs', 10)
-        self.patience = cfg.get('patience', 5)  # Increased patience
-        
+        self.patience = cfg.get('patience', 5)  # Not used if training full epochs
+    
     
     def train(self):
 
         # -------------------------------
-        # Training Phase with Augmentation, Weighted Sampling & Early Stopping
+        # Training Phase with Augmentation, Weighted Sampling & (optionally) Early Stopping
         # -------------------------------
         
         # Load full dataset for splitting
@@ -56,16 +57,18 @@ class Runner:
         train_indices = indices[:split]
         val_indices = indices[split:]
         
-        # Define transforms: moderate augmentation for stability
+        # Define robust training transform with advanced augmentation
         train_transform = transforms.Compose([
             transforms.Resize((64, 64)),
+            AutoAugment(policy=AutoAugmentPolicy.IMAGENET),  # Advanced augmentation
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
-            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
         ])
+        # Define validation transform (simpler)
         val_transform = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.ToTensor(),
@@ -76,19 +79,19 @@ class Runner:
         train_dataset = CustomImageDataset(root_dir=self.data_dir, transform=train_transform, indices=train_indices)
         val_dataset = CustomImageDataset(root_dir=self.data_dir, transform=val_transform, indices=val_indices)
         
-        # Compute sample weights for WeightedRandomSampler
+        # Compute sample weights for WeightedRandomSampler to handle class imbalance
         train_labels = np.array(train_dataset.labels)
 
         class_counts = np.bincount(train_labels, minlength=len(CLASSES))
-        class_counts = np.where(class_counts == 0, 1, class_counts)
-
+        class_counts = np.where(class_counts == 0, 1, class_counts)  # Avoid division by zero
+        
         sample_weights = [1.0 / class_counts[label] for label in train_labels]
         sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
         
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, sampler=sampler)
         val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         
-        # Choose model architecture based on configuration:
+        # Choose model architecture based on configuration
         if self.cfg.get('use_pretrained', False):
             from models.resnet import ResNetTransfer
             model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=True)
@@ -98,40 +101,42 @@ class Runner:
 
         model.to(self.device)
         
-        # Initialize loss, optimizer, and scheduler
+        # Initialize optimizer with weight decay for regularization
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate, weight_decay=1e-4)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
         print("\nStarting training...\n")
 
         best_val_loss = float('inf')
+
         best_model_state = None
         
+        # Run for full epochs (no early stopping, or adjust patience as needed)
         for epoch in range(self.epochs):
 
             train_loss = train_one_epoch(model, train_loader, criterion, optimizer, self.device)
+
             val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
 
             scheduler.step(val_loss)
 
             print(f"Epoch {epoch+1}/{self.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.4f}")
             
-            # Early stopping check based on validation loss improvement
+            # Optional: Save best model
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = model.state_dict()
-            else:
-                # If no improvement, print a message (but we don't stop training as per your requirement)
-                print("\nNo improvement in validation loss.\n")
         
-        # At the end, load the best model state
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
         
         os.makedirs(self.model_dir, exist_ok=True)
+
         model_path = os.path.join(self.model_dir, "dep-esp.pth")
+
         torch.save(model.state_dict(), model_path)
+
         print(f"\nTraining complete. Model saved as {model_path}.\n")
         
         # -------------------------------
@@ -139,7 +144,7 @@ class Runner:
         # -------------------------------
 
         val_loss, val_accuracy, y_true, y_pred = evaluate(model, val_loader, criterion, self.device)
-        
+
         accuracy, precision, recall, f1, cm = compute_metrics(y_true, y_pred)
 
         print("\nValidation Metrics:\n")
@@ -152,13 +157,13 @@ class Runner:
         print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
     
-
+    
     def eval(self):
 
         # -------------------------------
         # Evaluation Phase
         # -------------------------------
-
+        
         if self.cfg.get('use_pretrained', False):
             from models.resnet import ResNetTransfer
             model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=True)
@@ -173,14 +178,17 @@ class Runner:
             return
         
         model.load_state_dict(torch.load(model_path, map_location=self.device))
+
         model.to(self.device)
+
         model.eval()
         
         if check_camera_available():
 
             print("\nCamera detected. Running live evaluation.")
-            
+
             face_detector = FaceDetector()
+
             cap = cv2.VideoCapture(0)
 
             while True:
@@ -193,7 +201,7 @@ class Runner:
                 faces = face_detector.detect_faces(frame)
 
                 for (x, y, w, h) in faces:
-
+                    
                     face_img = frame[y:y+h, x:x+w]
                     face_img = cv2.resize(face_img, (64, 64))
                     face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
@@ -203,9 +211,8 @@ class Runner:
                     _, predicted = torch.max(output, 1)
 
                     label = CLASSES[predicted.item()]
-
+                    
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-
                     cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
                 cv2.imshow("Depresso-Espresso - Live Evaluation (Press 'q' to quit)", frame)
@@ -230,6 +237,7 @@ class Runner:
             for image_name in os.listdir(test_images_dir):
 
                 image_path = os.path.join(self.data_dir, "test", image_name)
+
                 image = cv2.imread(image_path)
 
                 if image is None:
@@ -250,7 +258,6 @@ class Runner:
                     label = CLASSES[predicted.item()]
 
                     cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
-
                     cv2.putText(image, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
                 cv2.imshow("Depresso-Espresso - Image Evaluation (Press any key for next)", image)
@@ -261,11 +268,11 @@ class Runner:
 
 
 def print_nice_confusion_matrix(cm, labels):
-
+    
     """
     Prints the confusion matrix in a modern, minimalist table format.
     """
-    
+
     cm = np.array(cm)
 
     row_labels = labels
