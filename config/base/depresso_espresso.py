@@ -5,12 +5,13 @@ config = {
     'nodes': 1,
     'use_slurm': False,
     'world_size': 1,
-    'learning_rate': 1e-4,       # Lower learning rate for stable fine-tuning
-    'epochs': 10,
-    'batch_size': 16,            # Adjust based on GPU memory
+    'learning_rate': 1e-4,
+    'epochs': 20,              # Increased epochs for fine-tuning
+    'batch_size': 16,
     'data_dir': 'data',
     'model_dir': 'model',
-    'use_pretrained': True,      # Option to use a pre-trained model
+    'use_pretrained': True,    # Use pre-trained ResNetTransfer model
+    'freeze_layers': False,    # Unfreeze all layers for fine-tuning
     'evaluate': False,
-    'patience': 5                # Patience for early stopping (if used)
+    'patience': 5              # For early stopping (optional)
 }
