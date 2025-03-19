@@ -130,7 +130,7 @@ class Runner:
             model.load_state_dict(best_model_state)
         
         os.makedirs(self.model_dir, exist_ok=True)
-        model_path = os.path.join(self.model_dir, "model.pth")
+        model_path = os.path.join(self.model_dir, "dep-esp.pth")
         torch.save(model.state_dict(), model_path)
         print(f"\nTraining complete. Model saved as {model_path}.\n")
         
@@ -166,7 +166,7 @@ class Runner:
             from models.cnn import CNN
             model = CNN(num_classes=len(CLASSES))
 
-        model_path = os.path.join(self.model_dir, "model.pth")
+        model_path = os.path.join(self.model_dir, "dep-esp.pth")
 
         if not os.path.exists(model_path):
             print(f"\nModel file {model_path} does not exist. Exiting evaluation phase.\n")

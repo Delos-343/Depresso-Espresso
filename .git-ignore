@@ -10,6 +10,7 @@
 models/cipo
 models/cipo.zip
 /model.pth
+/dep-esp.pth
 data/images/anxiety
 data/images/depression
 data/images/stress
