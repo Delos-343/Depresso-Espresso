@@ -6,7 +6,7 @@ config = {
     'use_slurm': False,
     'world_size': 1,
     'learning_rate': 1e-4,       # Lower learning rate for stable fine-tuning
-    'epochs': 20,                # Increase epochs for fine-tuning
+    'epochs': 25,                # Increase epochs for fine-tuning
     'batch_size': 16,            # Adjust based on your GPU memory
     'data_dir': 'data',
     'model_dir': 'model',

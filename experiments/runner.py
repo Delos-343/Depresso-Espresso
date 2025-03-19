@@ -35,7 +35,7 @@ class Runner:
         self.model_dir = cfg.get('model_dir', "model")
         self.batch_size = cfg.get('batch_size', 16)
         self.learning_rate = cfg.get('learning_rate', 1e-4)
-        self.epochs = cfg.get('epochs', 20)
+        self.epochs = cfg.get('epochs', 25)
         self.patience = cfg.get('patience', 5)
     
     
@@ -194,7 +194,7 @@ class Runner:
         model.load_state_dict(torch.load(model_path, map_location=self.device))
 
         model.to(self.device)
-        
+
         model.eval()
         
         if check_camera_available():
