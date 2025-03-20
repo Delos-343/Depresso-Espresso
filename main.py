@@ -19,7 +19,7 @@ def load_config(config_path):
     return config_module.config
 
 
-def train():
+def train_depresso():
     
     args = Namespace(
         config="config/base/depresso_espresso.py",
@@ -44,7 +44,7 @@ def train():
     runner_instance.train()
 
 
-def eval():
+def eval_depresso():
     
     args = Namespace(
         config="config/base/depresso_espresso.py",
@@ -78,8 +78,8 @@ if __name__ == '__main__':
     
     # python main.py --mode train
     if args.mode == 'train':
-        train()
+        train_depresso()
     
     # python main.py --mode eval
     elif args.mode == 'eval':
-        eval()
+        eval_depresso()
