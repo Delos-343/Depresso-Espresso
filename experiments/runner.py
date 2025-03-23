@@ -104,7 +104,7 @@ class Runner:
             from models.resnet import ResNetTransfer
 
             # Use unfreezed model for full fine-tuning.
-            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=self.cfg.get('freeze_layers', True))
+            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=self.cfg.get('freeze_layers', False))
 
         else:
 
@@ -182,7 +182,7 @@ class Runner:
 
         if self.cfg.get('use_pretrained', False):
             from models.resnet import ResNetTransfer
-            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=self.cfg.get('freeze_layers', True))
+            model = ResNetTransfer(num_classes=len(CLASSES), freeze_layers=self.cfg.get('freeze_layers', False))
         else:
             from models.cnn import CNN
             model = CNN(num_classes=len(CLASSES))
