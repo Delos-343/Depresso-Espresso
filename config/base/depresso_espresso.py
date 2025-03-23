@@ -11,7 +11,7 @@ config = {
     'data_dir': 'data',
     'model_dir': 'model',
     'use_pretrained': True,
-    'freeze_layers': False,
+    'freeze_layers': True,
     'use_focal_loss': True,    # Use Focal Loss to focus on hard examples
     'focal_alpha': 0.25,
     'focal_gamma': 2.0,
