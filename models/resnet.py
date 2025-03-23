@@ -4,12 +4,12 @@ from torchvision import models
 
 class ResNetTransfer(nn.Module):
 
-    def __init__(self, num_classes=3, freeze_layers=True):
-
+    def __init__(self, num_classes=3, freeze_layers=False):  # Ensure freeze_layers=False
+        
         super(ResNetTransfer, self).__init__()
 
         self.model = models.resnet18(pretrained=True)
-
+        
         if freeze_layers:
             for param in self.model.parameters():
                 param.requires_grad = False
@@ -18,6 +18,6 @@ class ResNetTransfer(nn.Module):
 
         self.model.fc = nn.Linear(num_features, num_classes)
     
-    
+
     def forward(self, x):
         return self.model(x)

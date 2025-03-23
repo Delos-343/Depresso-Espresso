@@ -5,16 +5,16 @@ config = {
     'nodes': 1,
     'use_slurm': False,
     'world_size': 1,
-    'learning_rate': 1e-4,       # Lower learning rate for stable fine-tuning
-    'epochs': 20,                # Increase epochs for fine-tuning
-    'batch_size': 16,            # Adjust based on your GPU memory
+    'learning_rate': 1e-4,
+    'epochs': 30,              # Increase epochs for full fine-tuning
+    'batch_size': 16,
     'data_dir': 'data',
     'model_dir': 'model',
-    'use_pretrained': True,      # Use pre-trained ResNetTransfer model
-    'freeze_layers': False,      # Unfreeze all layers for fine-tuning
-    'use_focal_loss': True,      # Set True to use Focal Loss instead of CrossEntropyLoss
+    'use_pretrained': True,
+    'freeze_layers': False,
+    'use_focal_loss': True,    # Use Focal Loss to focus on hard examples
     'focal_alpha': 0.25,
     'focal_gamma': 2.0,
     'evaluate': False,
-    'patience': 5                # Patience for early stopping (if desired)
+    'patience': 5
 }
