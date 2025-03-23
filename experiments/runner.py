@@ -55,7 +55,9 @@ class Runner:
         # DEBUG: Print full dataset class distribution
         distribution = {cls: full_dataset.labels.count(idx) for idx, cls in enumerate(CLASSES)}
 
-        print("Full dataset class distribution:", distribution)
+        print("\nFull dataset class distribution:", distribution)
+
+        print("\n")
         
         indices = list(range(len(full_dataset)))
         split = int(0.8 * len(full_dataset))
