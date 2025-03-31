@@ -19,7 +19,7 @@ class CustomImageDataset(Dataset):
         self.image_paths = []
         self.labels = []
 
-                # Follow this dataset directory structure:
+        # Follow this dataset directory structure:
         # ./
         #   images/
         #     depression/
