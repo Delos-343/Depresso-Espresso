@@ -13,7 +13,7 @@ def aggregate(root_dir):
 
     # Destination directory at the root
     dest_dir = os.path.join(root_dir, "__pycache__")
-
+    
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
     
