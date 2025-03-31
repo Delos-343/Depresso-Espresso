@@ -1,5 +1,5 @@
 import torch
 
-# Delete "model/dep-esp.pth" to train from scratch
+# Delete "model/dep_esp.pth" to train from scratch
 
 torch.cuda.empty_cache()
