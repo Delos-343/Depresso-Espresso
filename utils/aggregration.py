@@ -1,7 +1,7 @@
 import os
 import shutil
 
-def aggregate_pycache(root_dir):
+def aggregate(root_dir):
 
     """
     Aggregates all __pycache__ directories in the project (except the one at the root)
@@ -30,18 +30,17 @@ def aggregate_pycache(root_dir):
             cache_dir = os.path.join(dirpath, "__pycache__")
 
             for file in os.listdir(cache_dir):
-                
+
                 src_file = os.path.join(cache_dir, file)
 
                 # Compute relative path from root and replace path separators with underscores
                 rel_path = os.path.relpath(dirpath, root_dir)
-
                 new_filename = rel_path.replace(os.sep, "_") + "_" + file
-
                 dest_file = os.path.join(dest_dir, new_filename)
 
                 # Copy file to destination
                 shutil.copy2(src_file, dest_file)
 
             # Optionally, remove the original __pycache__ directory:
+
             # shutil.rmtree(cache_dir)

@@ -12,6 +12,7 @@ from data.Data_Loader import CustomImageDataset, CLASSES
 from utils.utils import check_camera_available, train_one_epoch, evaluate
 from utils.face_det import FaceDetector
 from utils.eval import compute_metrics
+from utils.aggregration import aggregate
 # CHANGE: Import focal loss option
 from utils.foc_loss import FocalLoss
 
@@ -172,6 +173,9 @@ class Runner:
 
         print("\nConfusion Matrix:\n")
         print_nice_confusion_matrix(cm, CLASSES)
+
+        # Aggregate all __pycache__ directories into the root __pycache__ folder
+        aggregate(os.getcwd())
     
 
     def eval(self):
