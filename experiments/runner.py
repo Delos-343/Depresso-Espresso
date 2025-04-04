@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
 from torchvision.transforms import RandomResizedCrop, RandomHorizontalFlip, RandomRotation, ColorJitter, Normalize, ToTensor
+from PIL import Image
 
 # Import custom modules with updated paths/names
 from data.Data_Loader import CustomImageDataset, CLASSES
@@ -38,6 +39,14 @@ class Runner:
         self.learning_rate = cfg.get('learning_rate', 1e-4)
         self.epochs = cfg.get('epochs', 20)
         self.patience = cfg.get('patience', 5)
+        
+        # CHANGE: Set evaluation transform (same as validation)
+        self.val_transform = transforms.Compose([
+            transforms.Resize((64, 64)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
     
     
     def train(self):
@@ -205,9 +214,10 @@ class Runner:
         
         if check_camera_available():
 
-            print("\nCamera detected. Running live evaluation.")
+            print("\nCamera detected. Running live evaluation.\n")
 
             face_detector = FaceDetector()
+
             cap = cv2.VideoCapture(0)
 
             while True:
@@ -225,18 +235,21 @@ class Runner:
                     face_img = cv2.resize(face_img, (64, 64))
                     face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
 
-                    face_tensor = self.transform(torch.from_numpy(face_rgb)).unsqueeze(0).to(self.device)
+                    # CHANGE: Use val_transform instead of self.transform
+                    face_pil = Image.fromarray(face_rgb)
+                    face_tensor = self.val_transform(face_pil).unsqueeze(0).to(self.device)
                     output = model(face_tensor)
 
                     _, predicted = torch.max(output, 1)
+
                     label = CLASSES[predicted.item()]
 
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
                     cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
-                
+
                 cv2.imshow("Depresso-Espresso - Live Evaluation (Press 'q' to quit)", frame)
-                
+
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
@@ -246,7 +259,7 @@ class Runner:
 
         else:
             
-            print("\nNo camera detected. Running evaluation on local images.")
+            print("\nNo camera detected. Running evaluation on local images.\n")
             
             test_images_dir = os.path.join(self.data_dir, "test")
             
